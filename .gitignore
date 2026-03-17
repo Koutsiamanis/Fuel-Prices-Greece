@@ -1,0 +1,30 @@
+# Environment & credentials
+.env
+
+# PDFs
+*.pdf
+allPDFS/
+pdfs2/
+fuel_pdfs/
+
+# Extracted JSON output
+json_output/
+json_output_corrected/
+
+# Script runtime files
+processed_log.json
+flagged.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Legacy root-level files (moved to scripts/ and database/)
+/parceALLpdfs.py
+/DailyFuelPricesParcer.py
+/downloadALL.py
+/databaseSchema.txt
