@@ -16,7 +16,6 @@ import os
 import re
 import smtplib
 import sys
-import time
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -38,7 +37,7 @@ load_dotenv(_PROJECT_DIR / '.env')
 # --- Configuration ---
 BASE_URL = "https://www.fuelprices.gr/"
 TARGET_PAGE = "https://www.fuelprices.gr/deltia_dn.view"
-PDF_DIR = _PROJECT_DIR / "allPDFS"
+PDF_DIR = _PROJECT_DIR / "pdfs"
 JSON_DIR = _PROJECT_DIR / "json_output"
 LOG_DIR = _PROJECT_DIR / "logs"
 LOG_FILE = LOG_DIR / "daily_pipeline.json"
@@ -68,11 +67,13 @@ def log(msg):
 # 1. Download
 # ---------------------------------------------------------------------------
 
-def download_latest_pdf():
-    """Fetch the latest PDF from fuelprices.gr.
+def get_pending_pdfs(limit=30):
+    """Fetch the page, find the most recent `limit` PDFs, download any missing,
+    and return those that haven't been processed yet (no JSON in json_output/).
 
-    Returns (pdf_path, date_str, error_msg).
-    On success error_msg is None.  On failure pdf_path and date_str are None.
+    Returns (pending: list[(pdf_path, date_str)], error_msg).
+    List is sorted oldest-first so we process in chronological order.
+    On failure returns (None, error_msg).
     """
     resp = requests.get(TARGET_PAGE, headers=HEADERS, timeout=30)
     resp.raise_for_status()
@@ -82,10 +83,10 @@ def download_latest_pdf():
     links = soup.find_all('a', string=date_re)
 
     if not links:
-        return None, None, "No date links found on page"
+        return None, "No date links found on page"
 
-    # Find the most recent date link
-    best_link, best_dt, best_str = None, None, None
+    # Parse all date links
+    dated_links = []
     for link in links:
         text = link.get_text(strip=True)
         parts = re.split(r'[/.\-]', text)
@@ -95,34 +96,46 @@ def download_latest_pdf():
             d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
             dt = datetime(y, m, d)
             date_str = f"{y}-{m:02d}-{d:02d}"
-            if best_dt is None or dt > best_dt:
-                best_dt, best_link, best_str = dt, link, date_str
+            dated_links.append((dt, date_str, link))
         except (ValueError, IndexError):
             continue
 
-    if not best_link:
-        return None, None, "Could not parse any date from links"
+    if not dated_links:
+        return None, "Could not parse any dates from links"
 
-    pdf_path = PDF_DIR / f"{best_str}.pdf"
+    # Keep only the most recent `limit` dates
+    dated_links.sort(key=lambda x: x[0], reverse=True)
+    dated_links = dated_links[:limit]
 
-    # Skip download if already on disk
-    if pdf_path.exists():
-        log(f"PDF already on disk: {pdf_path.name}")
-        return pdf_path, best_str, None
-
-    href = best_link.get('href')
-    if not href:
-        return None, None, "Link has no href attribute"
-
+    # Download missing PDFs, collect those without a JSON yet
     PDF_DIR.mkdir(parents=True, exist_ok=True)
-    file_resp = requests.get(urljoin(BASE_URL, href), headers=HEADERS, timeout=60)
-    file_resp.raise_for_status()
+    pending = []
 
-    with open(pdf_path, 'wb') as f:
-        f.write(file_resp.content)
+    for dt, date_str, link in dated_links:
+        if (JSON_DIR / f"{date_str}.json").exists():
+            continue  # already processed
 
-    log(f"Downloaded: {pdf_path.name}")
-    return pdf_path, best_str, None
+        pdf_path = PDF_DIR / f"{date_str}.pdf"
+        if not pdf_path.exists():
+            href = link.get('href')
+            if not href:
+                log(f"No href for {date_str} — skipping")
+                continue
+            try:
+                file_resp = requests.get(urljoin(BASE_URL, href), headers=HEADERS, timeout=60)
+                file_resp.raise_for_status()
+                with open(pdf_path, 'wb') as f:
+                    f.write(file_resp.content)
+                log(f"Downloaded: {pdf_path.name}")
+            except Exception as e:
+                log(f"Failed to download {date_str}: {e}")
+                continue
+
+        pending.append((pdf_path, date_str))
+
+    # Process oldest first (chronological order)
+    pending.sort(key=lambda x: x[1])
+    return pending, None
 
 
 # ---------------------------------------------------------------------------
@@ -392,60 +405,20 @@ def send_weekly_summary():
 # Main pipeline
 # ---------------------------------------------------------------------------
 
-def main():
-    # --test-email flag
-    if '--test-email' in sys.argv:
-        log("Sending test email...")
-        ok = send_email("Test - Fuel Price Pipeline", "This is a test email from daily_pipeline.py.")
-        log("Sent!" if ok else "Failed - check SMTP env vars in .env")
-        return
-
-    log("Daily fuel price pipeline starting")
-
-    # ---- 1. Download latest PDF ----
-    try:
-        pdf_path, date_str, dl_err = download_latest_pdf()
-    except Exception as e:
-        err = f"Download exception: {e}"
-        log(f"CRITICAL: {err}")
-        today = datetime.now().strftime('%Y-%m-%d')
-        append_log(today, 'failed', 'none', 0, error=err)
-        send_critical_alert(today, err)
-        sys.exit(1)
-
-    if pdf_path is None:
-        log(f"CRITICAL: {dl_err}")
-        today = datetime.now().strftime('%Y-%m-%d')
-        append_log(today, 'failed', 'none', 0, error=dl_err)
-        send_critical_alert(today, dl_err)
-        sys.exit(1)
-
-    # Note if the latest PDF isn't from today (might be posted later)
-    today = datetime.now().strftime('%Y-%m-%d')
-    if date_str != today:
-        log(f"Note: latest PDF is {date_str}, not today ({today})")
-
-    # Already processed? Skip.
-    json_path = JSON_DIR / f"{date_str}.json"
-    if json_path.exists():
-        log(f"Already processed: {date_str} - skipping")
-        if datetime.now().weekday() == 6:  # Sunday
-            send_weekly_summary()
-        return
-
+def process_pdf(pdf_path, date_str):
+    """Parse, validate, and save one PDF.  Returns True on success, False on failure."""
     log(f"Processing: {pdf_path.name}")
-
-    # ---- 2. Try pdfplumber (fast, free) ----
+    json_path = JSON_DIR / f"{date_str}.json"
     data = None
     method = None
     status = None
     all_warnings = []
 
+    # ---- Try pdfplumber (fast, free) ----
     try:
-        log("Parsing with pdfplumber...")
+        log("  Parsing with pdfplumber...")
         pdfplumber_data = parse_pdf(pdf_path)
 
-        # Ensure date is set (filename is authoritative)
         if not pdfplumber_data.get('date'):
             pdfplumber_data['date'] = date_str
 
@@ -456,63 +429,103 @@ def main():
             data = pdfplumber_data
             method = 'pdfplumber'
             status = 'success'
-            log(f"pdfplumber OK - {len(data['entries'])} entries")
+            log(f"  pdfplumber OK - {len(data['entries'])} entries")
             if warnings:
-                log(f"Minor warnings: {'; '.join(warnings)}")
+                log(f"  Warnings: {'; '.join(warnings)}")
         else:
-            log(f"pdfplumber insufficient: {'; '.join(warnings)}")
-            # Save partial result for debugging
+            log(f"  pdfplumber insufficient: {'; '.join(warnings)}")
             save_debug(date_str, pdfplumber_data)
 
     except Exception as e:
-        log(f"pdfplumber error: {e}")
+        log(f"  pdfplumber error: {e}")
         all_warnings.append(f"pdfplumber exception: {e}")
 
-    # ---- 3. LLM fallback if pdfplumber failed ----
+    # ---- LLM fallback ----
     if data is None:
-        log("Falling back to Gemini LLM...")
+        log("  Falling back to Gemini LLM...")
         data, llm_err = llm_parse(pdf_path)
 
         if data is None:
             err = f"Both parsers failed. LLM: {llm_err}. Warnings: {'; '.join(all_warnings)}"
-            log(f"CRITICAL: {err}")
+            log(f"  CRITICAL: {err}")
             append_log(date_str, 'failed', 'both', 0, warnings=all_warnings, error=err)
             send_critical_alert(date_str, err)
-            sys.exit(1)
+            return False
 
         method = 'llm'
         status = 'fallback_llm'
-        log(f"LLM OK - {len(data.get('entries', []))} entries")
+        log(f"  LLM OK - {len(data.get('entries', []))} entries")
 
-    # ---- 4. Save JSON ----
+    # ---- Save JSON ----
     JSON_DIR.mkdir(parents=True, exist_ok=True)
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    log(f"Saved: {json_path}")
+    log(f"  Saved: {json_path}")
 
-    # ---- 5. Log result ----
+    # ---- Log ----
     entries_count = len(data.get('entries', []))
     append_log(date_str, status, method, entries_count,
                warnings=all_warnings if all_warnings else None)
 
-    # ---- 6. DB insert (uncomment when ready) ----
+    # ---- DB insert (uncomment when ready) ----
     # from parceALLpdfs import get_db_ids, insert_data, DB_CONFIG
     # import psycopg2
     # conn = psycopg2.connect(**DB_CONFIG)
     # cur = conn.cursor()
     # ids = get_db_ids(cur)
     # rows = insert_data(cur, data, ids)
-    # conn.commit()
-    # cur.close()
-    # conn.close()
-    # log(f"DB: {rows} rows inserted")
+    # conn.commit(); cur.close(); conn.close()
+    # log(f"  DB: {rows} rows inserted")
 
-    # ---- 7. Weekly email on Sunday ----
-    if datetime.now().weekday() == 6:  # Sunday = 6
+    return True
+
+
+def main():
+    # --test-email flag
+    if '--test-email' in sys.argv:
+        log("Sending test email...")
+        ok = send_email("Test - Fuel Price Pipeline", "This is a test email from daily_pipeline.py.")
+        log("Sent!" if ok else "Failed - check SMTP env vars in .env")
+        return
+
+    log("Daily fuel price pipeline starting")
+
+    # ---- 1. Find unprocessed PDFs (up to last 30) ----
+    try:
+        pending, err = get_pending_pdfs(limit=30)
+    except Exception as e:
+        err = f"Page fetch exception: {e}"
+        log(f"CRITICAL: {err}")
+        today = datetime.now().strftime('%Y-%m-%d')
+        append_log(today, 'failed', 'none', 0, error=err)
+        send_critical_alert(today, err)
+        sys.exit(1)
+
+    if pending is None:
+        log(f"CRITICAL: {err}")
+        today = datetime.now().strftime('%Y-%m-%d')
+        append_log(today, 'failed', 'none', 0, error=err)
+        send_critical_alert(today, err)
+        sys.exit(1)
+
+    if not pending:
+        log("Nothing new to process — all up to date")
+        if datetime.now().weekday() == 6:
+            send_weekly_summary()
+        return
+
+    log(f"Found {len(pending)} unprocessed PDF(s)")
+
+    # ---- 2. Process each one (oldest first) ----
+    for pdf_path, date_str in pending:
+        process_pdf(pdf_path, date_str)
+
+    # ---- 3. Weekly email on Sunday ----
+    if datetime.now().weekday() == 6:
         log("Sunday - sending weekly summary")
         send_weekly_summary()
 
-    log(f"Done ({method}, {entries_count} entries)")
+    log("Pipeline finished")
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 # --- Configuration ---
 BASE_URL = "https://www.fuelprices.gr/"
 TARGET_PAGE = "https://www.fuelprices.gr/deltia_dn.view"
-DOWNLOAD_FOLDER = "./allPDFS"
+DOWNLOAD_FOLDER = "./pdfs"
 
 # Headers to mimic a real browser (prevents some 403 Forbidden errors)
 HEADERS = {
