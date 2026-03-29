@@ -9,6 +9,7 @@ fuel_pdfs/
 
 # Extracted JSON output
 json_output/
+json_output2/
 json_output_corrected/
 
 # Script runtime files

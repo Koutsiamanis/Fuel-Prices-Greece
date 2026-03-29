@@ -146,15 +146,12 @@ def clean_price(price_str):
         return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(f'Usage: python {sys.argv[0]} <pdf_file>')
-        sys.exit(1)
+def parse_pdf(pdf_path):
+    """Parse a standardized fuel price PDF and return structured data.
 
-    pdf_path = Path(sys.argv[1])
-    if not pdf_path.exists():
-        print(f'ERROR: file not found: {pdf_path}')
-        sys.exit(1)
+    Returns dict with 'date' (str|None) and 'entries' (list of prefecture/prices).
+    """
+    pdf_path = Path(pdf_path)
 
     # Date from filename if it looks like YYYY-MM-DD, otherwise from PDF header
     if re.match(r'\d{4}-\d{2}-\d{2}', pdf_path.stem):
@@ -168,9 +165,6 @@ def main():
         if report_date is None:
             first_page_text = pdf.pages[0].extract_text()
             report_date = parse_greek_date(first_page_text)
-            if not report_date:
-                print("ERROR: Could not determine date from filename or PDF header.")
-                sys.exit(1)
 
         data['date'] = report_date
 
@@ -183,12 +177,10 @@ def main():
             for line in lines:
                 line_norm = normalize_text(line)
 
-                # 1. Εντοπισμός Νομού
                 canonical, norm_name = match_prefecture(line_norm)
                 if not canonical:
                     continue
 
-                # 2. Απομόνωση των τιμών
                 rest_of_line = line_norm.replace(norm_name, "", 1).strip()
                 parts = rest_of_line.split()
                 price_parts = [p for p in parts if re.match(r'^[\d,\.-]+$', p)]
@@ -196,15 +188,10 @@ def main():
                 if len(price_parts) < 3:
                     continue
 
-                # 3. Δυναμική Αντιστοίχιση (ZIP)
-                # Η εντολή zip θα σταματήσει αυτόματα στο μήκος της μικρότερης λίστας.
-                # - Αν το price_parts έχει 4 τιμές -> θα πάρει τα πρώτα 4 καύσιμα.
-                # - Αν το price_parts έχει 5 τιμές -> θα πάρει και τα 5 καύσιμα.
                 prices = {}
                 for fuel_label, raw_price in zip(ALL_FUELS_ORDER, price_parts):
                     prices[fuel_label] = clean_price(raw_price)
 
-                # Fill any missing fuels with null
                 for fuel in ALL_FUELS_ORDER:
                     if fuel not in prices:
                         prices[fuel] = None
@@ -213,6 +200,25 @@ def main():
                     'prefecture': canonical,
                     'prices': prices,
                 })
+
+    return data
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(f'Usage: python {sys.argv[0]} <pdf_file>')
+        sys.exit(1)
+
+    pdf_path = Path(sys.argv[1])
+    if not pdf_path.exists():
+        print(f'ERROR: file not found: {pdf_path}')
+        sys.exit(1)
+
+    data = parse_pdf(pdf_path)
+
+    if not data['date']:
+        print("ERROR: Could not determine date from filename or PDF header.")
+        sys.exit(1)
 
     # Save JSON
     output_dir = Path('json_output')

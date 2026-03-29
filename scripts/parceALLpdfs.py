@@ -149,6 +149,12 @@ def normalize_text(text: str) -> str:
 # Pre-compute normalized canonical names for fast lookup
 _NORM_TO_CANONICAL = {normalize_text(n): n for n in CANONICAL_PREFECTURES}
 
+# Aliases for alternate spellings found in older PDFs
+_ALIASES = {
+    normalize_text('ΝΟΜΟΣ ΑΙΤΩΛΟΑΚΑΡΝΑΝΙΑΣ'): 'ΝΟΜΟΣ ΑΙΤΩΛΙΑΣ ΚΑΙ ΑΚΑΡΝΑΝΙΑΣ',
+}
+_NORM_TO_CANONICAL.update(_ALIASES)
+
 
 def _levenshtein(a: str, b: str) -> int:
     dp = list(range(len(b) + 1))
@@ -195,6 +201,11 @@ def normalize_entries(data: dict) -> dict:
         entry['prefecture'] = normalize_prefecture(entry.get('prefecture', ''))
         # Super is not tracked — remove it regardless of what the LLM returned
         entry.get('prices', {}).pop('Super', None)
+        # 0.0 means no data (no station reported), convert to null
+        prices = entry.get('prices', {})
+        for fuel, val in prices.items():
+            if val == 0.0:
+                prices[fuel] = None
     return data
 
 
