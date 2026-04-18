@@ -52,6 +52,8 @@ HEADERS = {
 
 PRICE_MIN, PRICE_MAX = 0.3, 4.0
 MIN_ENTRIES = 50  # expect 51-52 (50 prefectures + national average)
+NATIONAL_AVG = "ΠΑΝΕΛΛΗΝΙΟΣ ΣΤΑΘΜΙΣΜΕΝΟΣ Μ.Ο."
+AVG_DEVIATION_PCT = 10  # max allowed % deviation between simple avg and national avg
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +225,42 @@ def validate_parse(data):
     if low_price_entries:
         warnings.append(f"{low_price_entries} entries with <3 prices")
 
+    # Compare simple average vs national weighted average
+    national = None
+    prefectures_only = []
+    for entry in entries:
+        if entry.get('prefecture') == NATIONAL_AVG:
+            national = entry.get('prices', {})
+        else:
+            prefectures_only.append(entry)
+
+    avg_deviation_fail = False
+    if national:
+        for fuel, national_val in national.items():
+            if not isinstance(national_val, (int, float)) or national_val == 0:
+                continue
+            values = [
+                e['prices'][fuel] for e in prefectures_only
+                if isinstance(e.get('prices', {}).get(fuel), (int, float))
+            ]
+            if not values:
+                continue
+            simple_avg = sum(values) / len(values)
+            deviation = abs(simple_avg - national_val) / national_val * 100
+            if deviation > AVG_DEVIATION_PCT:
+                warnings.append(
+                    f"avg deviation {fuel}: avg={simple_avg:.3f} vs national={national_val:.3f} ({deviation:.1f}%)"
+                )
+                avg_deviation_fail = True
+    else:
+        warnings.append("missing ΠΑΝΕΛΛΗΝΙΟΣ Μ.Ο.")
+
     acceptable = (
         len(entries) >= MIN_ENTRIES
         and len(unmatched) == 0
         and out_of_range <= 5
         and low_price_entries <= 3
+        and not avg_deviation_fail
     )
 
     return acceptable, warnings
