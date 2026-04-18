@@ -1,39 +1,37 @@
-The database schema:
--- Creation of a table for the prefectures
+-- MySQL schema for the Greek fuel prices database.
+
 CREATE TABLE prefectures (
-    id SERIAL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Creation of a table for fuel types
 CREATE TABLE fuel_types (
-    id SERIAL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Creation of the Price Table (linking Prefecture, Fuel, Date, Price)
 CREATE TABLE daily_fuel_prices (
-    id BIGSERIAL PRIMARY KEY,
-    prefecture_id INTEGER NOT NULL REFERENCES prefectures(id),
-    fuel_type_id INTEGER NOT NULL REFERENCES fuel_types(id),
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    prefecture_id INT NOT NULL,
+    fuel_type_id INT NOT NULL,
     date DATE NOT NULL,
-    price NUMERIC(6, 3) NOT NULL, -- Π.χ. 1.743 (επιτρέπει 3 δεκαδικά)
-    
-    -- Contraint: A county, for a fuel, on a given date has only one price.
-    CONSTRAINT unique_price_entry UNIQUE (prefecture_id, fuel_type_id, date)
-);
+    price DECIMAL(6, 3) NOT NULL,
 
--- Create an index for quick search by date
-CREATE INDEX idx_prices_date ON daily_fuel_prices(date);
+    CONSTRAINT fk_price_prefecture FOREIGN KEY (prefecture_id) REFERENCES prefectures(id),
+    CONSTRAINT fk_price_fuel       FOREIGN KEY (fuel_type_id)  REFERENCES fuel_types(id),
+    CONSTRAINT unique_price_entry  UNIQUE (prefecture_id, fuel_type_id, date),
 
-INSERT INTO fuel_types (name) VALUES 
+    INDEX idx_prices_date (date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO fuel_types (name) VALUES
 ('Αμόλυβδη 95 οκτ.'),
 ('Αμόλυβδη 100 οκτ.'),
 ('Diesel Κίνησης'),
 ('Υγραέριο κίνησης (Autogas)'),
 ('Diesel Θέρμανσης Κατ΄ οίκον');
 
-INSERT INTO prefectures (name) VALUES 
+INSERT INTO prefectures (name) VALUES
 ('ΝΟΜΟΣ ΑΤΤΙΚΗΣ'),
 ('ΝΟΜΟΣ ΑΙΤΩΛΙΑΣ ΚΑΙ ΑΚΑΡΝΑΝΙΑΣ'),
 ('ΝΟΜΟΣ ΑΡΓΟΛΙΔΟΣ'),

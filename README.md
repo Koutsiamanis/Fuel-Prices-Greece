@@ -6,10 +6,10 @@ The Greek Ministry of Energy publishes a PDF every day with fuel prices per pref
 
 ## Current Status
 
-- **3,194 PDFs** collected and parsed (2017 – present)
-- **3,194 JSON files** produced, one per day
-- Daily pipeline running via cron — downloads, parses, and logs each new bulletin
-- Database schema ready — DB insertion is implemented and waiting for a live connection
+- **3,213 PDFs** collected and parsed (2017 – present)
+- **3,213 JSON files** produced, one per day
+- Daily pipeline running via cron — downloads, parses, inserts into MySQL, and logs each new bulletin
+- MySQL schema applied; bulk-import script backfills all historical JSONs
 - API and frontend are next
 
 ## How It Works
@@ -32,15 +32,17 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 
 ```
 ├── scripts/
-│   ├── daily_pipeline.py   # Daily cron job: download → parse → log → alert
+│   ├── daily_pipeline.py   # Daily cron job: download → parse → DB → log → alert
 │   ├── daily_parser.py     # pdfplumber parser for standardised (2023+) PDFs
 │   ├── parceALLpdfs.py     # Bulk parser using Gemini AI (historical PDFs)
-│   └── downloadALL.py      # One-off: download all historical PDFs
+│   ├── downloadALL.py      # One-off: download all historical PDFs
+│   ├── import_to_db.py     # One-off: bulk-import all JSONs into MySQL
+│   └── db.py               # Shared MySQL connection + insert helpers
 ├── pdfs/                   # All downloaded PDFs (git-ignored)
 ├── json_output/            # Parsed output, one JSON per day (git-ignored)
 ├── logs/                   # Pipeline run logs (git-ignored)
 ├── database/
-│   └── schema.sql          # PostgreSQL schema
+│   └── schema.sql          # MySQL schema
 ├── api/                    # PHP REST API — coming soon
 └── frontend/               # Chart UI — coming soon
 ```
@@ -54,10 +56,18 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 
 2. Install Python dependencies:
    ```bash
-   pip install google-genai psycopg2-binary python-dotenv tqdm pdfplumber requests beautifulsoup4
+   pip install google-genai pymysql python-dotenv tqdm pdfplumber requests beautifulsoup4
    ```
 
-3. *(Optional)* Set up the database with `database/schema.sql`.
+3. Apply the schema to your MySQL server:
+   ```bash
+   mysql -h <host> -u <user> -p <db_name> < database/schema.sql
+   ```
+
+4. Backfill all historical JSONs into the DB (idempotent — safe to re-run):
+   ```bash
+   python scripts/import_to_db.py
+   ```
 
 ## Usage
 

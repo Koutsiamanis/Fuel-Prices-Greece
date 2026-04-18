@@ -5,23 +5,12 @@ import time
 import unicodedata
 from pathlib import Path
 
-# import psycopg2
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from tqdm import tqdm
 
 load_dotenv()
-
-# --- Configuration ---
-DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME', 'postgres'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT', '5432'),
-    'sslmode': 'require',  # Required for Supabase
-}
 
 PROGRESS_FILE = Path('processed_log.json')
 
@@ -282,61 +271,6 @@ def extract_data_from_pdf(client: genai.Client, pdf_path: Path) -> dict | None:
                 return None
 
 
-def get_db_ids(cursor) -> dict:
-    """Load prefecture and fuel type name→id maps from the database."""
-    ids = {'prefectures': {}, 'fuels': {}}
-    cursor.execute('SELECT name, id FROM prefectures')
-    for name, pid in cursor.fetchall():
-        ids['prefectures'][normalize_text(name)] = pid
-    cursor.execute('SELECT name, id FROM fuel_types')
-    for name, fid in cursor.fetchall():
-        ids['fuels'][name] = fid
-    return ids
-
-
-def find_prefecture_id(llm_name: str, ids_cache: dict) -> int | None:
-    """Fuzzy-match an LLM-returned prefecture name to a DB id."""
-    normalized = normalize_text(llm_name)
-    if normalized in ids_cache['prefectures']:
-        return ids_cache['prefectures'][normalized]
-    for db_name, db_id in ids_cache['prefectures'].items():
-        if db_name in normalized or normalized in db_name:
-            return db_id
-    return None
-
-
-def insert_data(cursor, data: dict, ids_cache: dict) -> int:
-    """Insert extracted price entries. Returns the number of rows upserted."""
-    date = data.get('date')
-    if not date:
-        return 0
-
-    rows = 0
-    for entry in data.get('entries', []):
-        pref_id = find_prefecture_id(entry.get('prefecture', ''), ids_cache)
-        if pref_id is None:
-            continue
-
-        for fuel_name, price in entry.get('prices', {}).items():
-            if price is None:
-                continue
-            fuel_id = ids_cache['fuels'].get(fuel_name)
-            if fuel_id is None:
-                continue
-
-            cursor.execute(
-                """
-                INSERT INTO daily_fuel_prices (prefecture_id, fuel_type_id, date, price)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (prefecture_id, fuel_type_id, date)
-                DO UPDATE SET price = EXCLUDED.price
-                """,
-                (pref_id, fuel_id, date, float(price)),
-            )
-            rows += 1
-    return rows
-
-
 def load_progress() -> set:
     if PROGRESS_FILE.exists():
         with open(PROGRESS_FILE) as f:
@@ -381,17 +315,18 @@ def main() -> None:
 
     client = genai.Client(api_key=api_key)
 
-    # --- DB disabled for testing ---
-    # conn = psycopg2.connect(**DB_CONFIG)
-    # cur = conn.cursor()
-    # ids_cache = get_db_ids(cur)
-    # print(f'DB prefectures: {len(ids_cache["prefectures"])}  fuel types: {len(ids_cache["fuels"])}')
+    from db import connect, load_id_maps, insert_entries
+    conn = connect()
+    cur = conn.cursor()
+    pref_ids, fuel_ids = load_id_maps(cur)
+    print(f'DB prefectures: {len(pref_ids)}  fuel types: {len(fuel_ids)}')
 
     output_dir = Path('json_output')
     output_dir.mkdir(exist_ok=True)
 
     flagged = load_flagged()
     errors = []
+    total_rows = 0
 
     for pdf_path in tqdm(remaining, desc='Processing', unit='pdf'):
         data = extract_data_from_pdf(client, pdf_path)
@@ -416,19 +351,19 @@ def main() -> None:
         with open(out_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        # --- DB insert disabled for testing ---
-        # rows = insert_data(cur, data, ids_cache)
-        # conn.commit()
-        # total_rows += rows
+        rows, _ = insert_entries(cur, data, pref_ids, fuel_ids)
+        conn.commit()
+        total_rows += rows
 
         processed.add(pdf_path.name)
         save_progress(processed)
-        tqdm.write(f'  {pdf_path.name}  →  {len(data.get("entries", []))} entries  (date: {data.get("date")})')
+        tqdm.write(f'  {pdf_path.name}  →  {len(data.get("entries", []))} entries  ({rows} db rows)')
 
-    # cur.close()
-    # conn.close()
+    cur.close()
+    conn.close()
 
     print(f'\nFinished. JSON files saved to {output_dir}/')
+    print(f'Total DB rows upserted: {total_rows}')
     if flagged:
         print(f'Flagged for review ({len(flagged)}): see {FLAGGED_FILE}')
     if errors:

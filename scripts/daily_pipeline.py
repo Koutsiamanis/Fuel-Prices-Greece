@@ -495,20 +495,34 @@ def process_pdf(pdf_path, date_str):
         json.dump(data, f, ensure_ascii=False, indent=2)
     log(f"  Saved: {json_path}")
 
+    # ---- DB insert ----
+    db_failed = False
+    try:
+        from db import connect, load_id_maps, insert_entries
+        conn = connect()
+        cur = conn.cursor()
+        pref_ids, fuel_ids = load_id_maps(cur)
+        rows, unknown = insert_entries(cur, data, pref_ids, fuel_ids)
+        conn.commit()
+        cur.close()
+        conn.close()
+        log(f"  DB: {rows} rows upserted")
+        if unknown:
+            warning = f"unknown prefectures: {sorted(unknown)}"
+            log(f"  DB warning: {warning}")
+            all_warnings.append(warning)
+    except Exception as e:
+        log(f"  DB insert failed: {e}")
+        all_warnings.append(f"db insert failed: {e}")
+        db_failed = True
+
     # ---- Log ----
     entries_count = len(data.get('entries', []))
     append_log(date_str, status, method, entries_count,
                warnings=all_warnings if all_warnings else None)
 
-    # ---- DB insert (uncomment when ready) ----
-    # from parceALLpdfs import get_db_ids, insert_data, DB_CONFIG
-    # import psycopg2
-    # conn = psycopg2.connect(**DB_CONFIG)
-    # cur = conn.cursor()
-    # ids = get_db_ids(cur)
-    # rows = insert_data(cur, data, ids)
-    # conn.commit(); cur.close(); conn.close()
-    # log(f"  DB: {rows} rows inserted")
+    if db_failed:
+        send_critical_alert(date_str, f"DB insert failed for {date_str}")
 
     return True
 
