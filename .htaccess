@@ -1,0 +1,22 @@
+# Block web access to anything that isn't meant to be public.
+# The API (under /api/) is the only intended public surface.
+
+# Deny any dotfile: .env, .env.example, .git, .gitignore, etc.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Deny runtime state files at project root
+<Files "processed_log.json">
+    Require all denied
+</Files>
+<Files "flagged.json">
+    Require all denied
+</Files>
+<Files "requirements.txt">
+    Require all denied
+</Files>
+
+# Deny internal directories. The API is the canonical data interface.
+RewriteEngine On
+RewriteRule ^(scripts|database|logs|pdfs|json_output|venv|oldfiles)(/|$) - [F,L]

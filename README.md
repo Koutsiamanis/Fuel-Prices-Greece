@@ -10,7 +10,8 @@ The Greek Ministry of Energy publishes a PDF every day with fuel prices per pref
 - **3,213 JSON files** produced, one per day
 - Daily pipeline running via cron — downloads, parses, inserts into MySQL, and logs each new bulletin
 - MySQL schema applied; bulk-import script backfills all historical JSONs
-- API and frontend are next
+- Public PHP REST API serves the data (versioned at `/api/v1/`)
+- Chart-based frontend is next
 
 ## How It Works
 
@@ -43,7 +44,12 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 ├── logs/                   # Pipeline run logs (git-ignored)
 ├── database/
 │   └── schema.sql          # MySQL schema
-├── api/                    # PHP REST API — coming soon
+├── api/                    # PHP REST API (see below)
+│   ├── index.php           # Front controller: routing + CORS + auth hook
+│   ├── config.php          # DB connection + .env loader
+│   ├── helpers.php         # Response + input-validation helpers
+│   ├── auth.php            # Auth hook (disabled by default)
+│   └── endpoints/          # One file per endpoint
 └── frontend/               # Chart UI — coming soon
 ```
 
@@ -94,3 +100,39 @@ python scripts/daily_pipeline.py --test-email
 ## Environment Variables
 
 See `.env.example` for all required variables (Gemini API key, DB credentials, SMTP settings).
+
+## Public API
+
+Read-only JSON API, versioned at `/api/v1/`. All responses share the envelope `{ "data": ..., "meta": ... }` on success or `{ "error": {...}, "meta": ... }` on failure.
+
+### Endpoints
+
+| Method | Path                     | Description                                           |
+|--------|--------------------------|-------------------------------------------------------|
+| GET    | `/api/v1/`               | API metadata + dataset coverage + endpoint list       |
+| GET    | `/api/v1/prefectures`    | All prefectures (51 + national weighted average)      |
+| GET    | `/api/v1/fuel-types`     | All tracked fuel types                                |
+| GET    | `/api/v1/prices`         | Time series for one prefecture + fuel + date range    |
+| GET    | `/api/v1/prices/latest`  | Latest bulletin snapshot, every prefecture            |
+
+### `/prices` query parameters (all required)
+
+- `prefecture_id` — integer, from `/prefectures`
+- `fuel_type_id` — integer, from `/fuel-types`
+- `from` — `YYYY-MM-DD`
+- `to` — `YYYY-MM-DD`
+
+### Example
+
+```
+curl 'https://example.com/api/v1/prices?prefecture_id=1&fuel_type_id=1&from=2026-01-01&to=2026-04-16'
+```
+
+### Enabling auth
+
+The API is public by default. To require an `X-API-Key` header:
+
+1. Set `AUTH_ENABLED = true` in [api/auth.php](api/auth.php).
+2. Add `API_KEY=<your-secret>` to `.env`.
+
+No other file needs to change — `authenticate()` runs once in the front controller before dispatching to any endpoint.
