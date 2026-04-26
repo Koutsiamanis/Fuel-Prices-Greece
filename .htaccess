@@ -20,3 +20,14 @@
 # Deny internal directories. The API is the canonical data interface.
 RewriteEngine On
 RewriteRule ^(scripts|database|logs|pdfs|json_output|venv|oldfiles)(/|$) - [F,L]
+
+# Pretty URLs for top-level pages (e.g. /docs instead of /docs.html).
+# 1. If the user requests *.html directly, 301 to the clean URL.
+RewriteCond %{THE_REQUEST} \s/+([^?\s]+?)\.html[\s?] [NC]
+RewriteRule ^ /%1 [R=301,L]
+
+# 2. If the clean URL has no real file/dir but a .html sibling exists, serve it.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.+?)/?$ $1.html [L]
