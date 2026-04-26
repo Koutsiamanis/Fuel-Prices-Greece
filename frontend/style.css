@@ -243,6 +243,10 @@ main {
     pointer-events: none;
 }
 
+.chart-status[hidden] {
+    display: none;
+}
+
 .chart-status[data-kind="error"] {
     color: #b91c1c;
 }

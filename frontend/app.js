@@ -1,11 +1,6 @@
 /**
  * Greek Fuel Prices — frontend.
  * Talks to the PHP API at ../api/v1/. Renders a time-series line chart.
- *
- * The API is reachable in two forms depending on Apache config:
- *   pretty:   ../api/v1/prices?...
- *   fallback: ../api/index.php?_route=v1/prices&...
- * We try pretty first, fall back once if it 404s, then cache whichever worked.
  */
 
 const GREEK_MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μάι', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
@@ -14,7 +9,6 @@ const DEFAULT_FUEL = 'Αμόλυβδη 95';
 const DEFAULT_PREFECTURE = 'ΠΑΝΕΛΛΗΝΙΟΣ ΣΤΑΘΜΙΣΜΕΝΟΣ Μ.Ο.';
 const NATIONAL_LABEL = 'Όλη η Ελλάδα';
 
-let apiMode = null;
 let chart = null;
 let coverageLatest = null;
 
@@ -30,33 +24,13 @@ const els = {
 
 async function apiGet(path, params = {}) {
     const qs = new URLSearchParams(params).toString();
-    const tryModes = apiMode ? [apiMode] : ['pretty', 'fallback'];
-
-    for (const mode of tryModes) {
-        const url = mode === 'pretty'
-            ? `../api/v1/${path}${qs ? '?' + qs : ''}`
-            : `../api/index.php?_route=v1/${path}${qs ? '&' + qs : ''}`;
-
-        let res;
-        try {
-            res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        } catch (e) {
-            if (mode === tryModes[tryModes.length - 1]) throw e;
-            continue;
-        }
-
-        if (res.status === 404 && mode === 'pretty' && !apiMode) {
-            continue;
-        }
-
-        apiMode = mode;
-        const body = await res.json();
-        if (!res.ok || body.error) {
-            const msg = body?.error?.message || `HTTP ${res.status}`;
-            throw new Error(msg);
-        }
-        return body;
+    const url = `api/v1/${path}${qs ? '?' + qs : ''}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const body = await res.json();
+    if (!res.ok || body.error) {
+        throw new Error(body?.error?.message || `HTTP ${res.status}`);
     }
+    return body;
 }
 
 // ---- Status -------------------------------------------------------------
