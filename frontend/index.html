@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Prices Greece</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="/">
+            <svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M4 24 L10 16 L14 20 L22 8 L28 14" fill="none" stroke="#0f1b3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="22" cy="8" r="3" fill="#22c55e"/>
+            </svg>
+            <span class="brand-text">Fuel Prices Greece</span>
+        </a>
+        <a class="api-button" href="#api">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+                <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z" fill="currentColor"/>
+            </svg>
+            Σύνδεση API
+        </a>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h1 class="hero-title">Μέση Τιμή Καυσίμων στην Ελλάδα</h1>
+
+            <div class="controls">
+                <label class="control">
+                    <span class="control-label">Τύπος Καυσίμου</span>
+                    <select id="fuel-select" class="control-input"></select>
+                </label>
+
+                <label class="control">
+                    <span class="control-label">Περιοχή</span>
+                    <select id="prefecture-select" class="control-input"></select>
+                </label>
+
+                <div class="control">
+                    <span class="control-label">Διάστημα</span>
+                    <div class="range-chips" id="range-chips" role="group" aria-label="Διάστημα χρόνου">
+                        <button type="button" class="chip" data-range="1M">1M</button>
+                        <button type="button" class="chip" data-range="3M">3M</button>
+                        <button type="button" class="chip" data-range="6M">6M</button>
+                        <button type="button" class="chip" data-range="1Y">1Y</button>
+                        <button type="button" class="chip is-active" data-range="ALL">Όλα</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="chart-card">
+            <div class="chart-status" id="chart-status" hidden></div>
+            <div class="chart-wrap">
+                <canvas id="price-chart"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>Δεδομένα από το Υπουργείο Ενέργειας &bull; Ενημερώνονται καθημερινά</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
