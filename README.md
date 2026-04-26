@@ -45,10 +45,9 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 ├── database/
 │   └── schema.sql          # MySQL schema
 ├── api/                    # PHP REST API (see below)
-│   ├── index.php           # Front controller: routing + CORS + auth hook
+│   ├── index.php           # Front controller: routing + CORS
 │   ├── config.php          # DB connection + .env loader
 │   ├── helpers.php         # Response + input-validation helpers
-│   ├── auth.php            # Auth hook (disabled by default)
 │   └── endpoints/          # One file per endpoint
 └── frontend/               # Chart UI — coming soon
 ```
@@ -103,7 +102,7 @@ See `.env.example` for all required variables (Gemini API key, DB credentials, S
 
 ## Public API
 
-Read-only JSON API, versioned at `/api/v1/`. All responses share the envelope `{ "data": ..., "meta": ... }` on success or `{ "error": {...}, "meta": ... }` on failure.
+Read-only JSON API, versioned at `/api/v1/`. **Public — no authentication required.** All responses share the envelope `{ "data": ..., "meta": ... }` on success or `{ "error": {...}, "meta": ... }` on failure.
 
 ### Endpoints
 
@@ -127,12 +126,3 @@ Read-only JSON API, versioned at `/api/v1/`. All responses share the envelope `{
 ```
 curl 'https://example.com/api/v1/prices?prefecture_id=1&fuel_type_id=1&from=2026-01-01&to=2026-04-16'
 ```
-
-### Enabling auth
-
-The API is public by default. To require an `X-API-Key` header:
-
-1. Set `AUTH_ENABLED = true` in [api/auth.php](api/auth.php).
-2. Add `API_KEY=<your-secret>` to `.env`.
-
-No other file needs to change — `authenticate()` runs once in the front controller before dispatching to any endpoint.

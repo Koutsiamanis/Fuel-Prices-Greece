@@ -5,9 +5,8 @@
  * Responsibilities:
  *   1. Set CORS + content-type headers
  *   2. Handle OPTIONS preflight
- *   3. Run the auth hook (currently a no-op — see auth.php)
- *   4. Resolve the route from the URL and dispatch
- *   5. Catch any uncaught exception and return a clean 500
+ *   3. Resolve the route from the URL and dispatch
+ *   4. Catch any uncaught exception and return a clean 500
  *
  * Route table below is the single place to add/remove endpoints.
  */
@@ -16,12 +15,11 @@ declare(strict_types=1);
 
 require __DIR__ . '/config.php';
 require __DIR__ . '/helpers.php';
-require __DIR__ . '/auth.php';
 
 // ---- CORS ---------------------------------------------------------------
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -86,7 +84,5 @@ if (!array_key_exists($route, $routes)) {
         ['available_routes' => array_map(fn($r) => "/$versionPrefix/$r", array_keys($routes))]
     );
 }
-
-authenticate();
 
 require __DIR__ . '/endpoints/' . $routes[$route];

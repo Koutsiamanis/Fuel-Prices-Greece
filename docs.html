@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Docs &mdash; Fuel Prices Greece</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="frontend/style.css">
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="index.html">
+            <svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M4 24 L10 16 L14 20 L22 8 L28 14" fill="none" stroke="#0f1b3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="22" cy="8" r="3" fill="#22c55e"/>
+            </svg>
+            <span class="brand-text">Fuel Prices Greece</span>
+        </a>
+        <a class="api-button" href="index.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+                <path d="M10 19l-7-7 7-7v4h11v6H10v4z" fill="currentColor"/>
+            </svg>
+            Αρχική
+        </a>
+    </header>
+
+    <section class="docs-hero">
+        <div class="docs-hero-inner">
+            <h1>API Documentation</h1>
+            <p>Ένα δημόσιο REST API που σερβίρει ημερήσιες τιμές καυσίμων ανά νομό στην Ελλάδα από το 2017.</p>
+        </div>
+    </section>
+
+    <main class="docs-content">
+        <nav class="docs-toc" aria-label="Πίνακας περιεχομένων">
+            <a href="#overview">Επισκόπηση</a>
+            <a href="#base-url">Βασικό URL</a>
+            <a href="#response-format">Δομή Απάντησης</a>
+            <a href="#endpoints">Endpoints</a>
+            <a href="#errors">Σφάλματα</a>
+        </nav>
+
+        <section id="overview" class="docs-section">
+            <h2>Επισκόπηση</h2>
+            <p>Το API είναι read-only και δημόσιο &mdash; δεν χρειάζεται API key ή authentication. Όλα τα δεδομένα προέρχονται από τα ημερήσια δελτία τιμών του Υπουργείου Ενέργειας.</p>
+            <ul class="bullets">
+                <li>Διαθέσιμα μόνο GET requests</li>
+                <li>Όλες οι απαντήσεις είναι σε JSON (UTF-8)</li>
+                <li>Οι τιμές δίνονται σε <strong>EUR/L</strong></li>
+                <li>CORS ενεργό για όλες τις προελεύσεις</li>
+            </ul>
+        </section>
+
+        <section id="base-url" class="docs-section">
+            <h2>Βασικό URL</h2>
+            <pre class="code"><span class="code-line">https://nireas.iee.ihu.gr/fuel/api/v1/</span></pre>
+            <p>Όλες οι διαδρομές είναι σχετικές με αυτό το prefix. Η έκδοση (<code>v1</code>) είναι μέρος του URL ώστε μελλοντικές αλλαγές να μην σπάσουν υπάρχοντα clients.</p>
+        </section>
+
+        <section id="response-format" class="docs-section">
+            <h2>Δομή Απάντησης</h2>
+            <p>Κάθε επιτυχημένη απάντηση έχει την ίδια μορφή:</p>
+            <pre class="code">{
+  "data": <span class="code-comment">// τα δεδομένα του endpoint (object ή array)</span>,
+  "meta": <span class="code-comment">// πληροφορίες σχετικά με την απάντηση</span>
+}</pre>
+            <p>Σε περίπτωση σφάλματος:</p>
+            <pre class="code">{
+  "error": {
+    "code": "invalid_param",
+    "message": "Human-readable description",
+    "details": { ... }
+  },
+  "meta": { ... }
+}</pre>
+        </section>
+
+        <section id="endpoints" class="docs-section">
+            <h2>Endpoints</h2>
+
+            <article class="endpoint" id="ep-root">
+                <header>
+                    <span class="method-badge">GET</span>
+                    <code class="endpoint-path">/</code>
+                </header>
+                <p>Επισκόπηση του API: όνομα, έκδοση, λίστα endpoints και κάλυψη του dataset (ημερομηνίες, σύνολο εγγραφών).</p>
+                <h4>Παράδειγμα</h4>
+                <pre class="code">curl https://nireas.iee.ihu.gr/fuel/api/v1/</pre>
+            </article>
+
+            <article class="endpoint" id="ep-prefectures">
+                <header>
+                    <span class="method-badge">GET</span>
+                    <code class="endpoint-path">/prefectures</code>
+                </header>
+                <p>Επιστρέφει τους 51 νομούς της Ελλάδας συν την εθνική σταθμισμένη μέση τιμή. Χρησιμοποιήστε το <code>id</code> ως παράμετρο στο <code>/prices</code>.</p>
+                <h4>Παράδειγμα απάντησης</h4>
+                <pre class="code">{
+  "data": [
+    { "id": 1, "name": "ΠΑΝΕΛΛΗΝΙΟΣ ΣΤΑΘΜΙΣΜΕΝΟΣ Μ.Ο." },
+    { "id": 2, "name": "ΑΘΗΝΩΝ" },
+    { "id": 3, "name": "ΘΕΣΣΑΛΟΝΙΚΗΣ" }
+  ],
+  "meta": { "count": 52 }
+}</pre>
+            </article>
+
+            <article class="endpoint" id="ep-fuel-types">
+                <header>
+                    <span class="method-badge">GET</span>
+                    <code class="endpoint-path">/fuel-types</code>
+                </header>
+                <p>Επιστρέφει τους τύπους καυσίμων που παρακολουθούνται.</p>
+                <h4>Παράδειγμα απάντησης</h4>
+                <pre class="code">{
+  "data": [
+    { "id": 1, "name": "Αμόλυβδη 95" },
+    { "id": 2, "name": "Αμόλυβδη 100" },
+    { "id": 3, "name": "Diesel Κίνησης" },
+    { "id": 4, "name": "Diesel Θέρμανσης" },
+    { "id": 5, "name": "Υγραέριο Κίνησης (Auto Gas)" }
+  ],
+  "meta": { "count": 5 }
+}</pre>
+            </article>
+
+            <article class="endpoint" id="ep-prices">
+                <header>
+                    <span class="method-badge">GET</span>
+                    <code class="endpoint-path">/prices</code>
+                </header>
+                <p>Χρονοσειρά τιμών για συγκεκριμένο νομό + καύσιμο σε ένα διάστημα ημερομηνιών. Τα σημεία επιστρέφονται ταξινομημένα από το παλαιότερο προς το νεότερο.</p>
+
+                <h4>Παράμετροι</h4>
+                <table class="params-table">
+                    <thead>
+                        <tr><th>Όνομα</th><th>Τύπος</th><th>Περιγραφή</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>prefecture_id</code></td><td>integer</td><td>ID από το <code>/prefectures</code></td></tr>
+                        <tr><td><code>fuel_type_id</code></td><td>integer</td><td>ID από το <code>/fuel-types</code></td></tr>
+                        <tr><td><code>from</code></td><td>YYYY-MM-DD</td><td>Αρχή διαστήματος (συμπεριλαμβανομένης)</td></tr>
+                        <tr><td><code>to</code></td><td>YYYY-MM-DD</td><td>Τέλος διαστήματος (συμπεριλαμβανομένης)</td></tr>
+                    </tbody>
+                </table>
+                <p class="hint">Όλες οι παράμετροι είναι υποχρεωτικές.</p>
+
+                <h4>Παράδειγμα</h4>
+                <pre class="code">curl 'https://nireas.iee.ihu.gr/fuel/api/v1/prices?prefecture_id=1&fuel_type_id=1&from=2026-01-01&to=2026-04-22'</pre>
+
+                <h4>Παράδειγμα απάντησης</h4>
+                <pre class="code">{
+  "data": [
+    { "date": "2026-01-02", "price": 1.823 },
+    { "date": "2026-01-03", "price": 1.819 },
+    { "date": "2026-01-04", "price": 1.821 }
+  ],
+  "meta": {
+    "count": 3,
+    "unit": "EUR/L",
+    "prefecture": { "id": 1, "name": "ΠΑΝΕΛΛΗΝΙΟΣ ΣΤΑΘΜΙΣΜΕΝΟΣ Μ.Ο." },
+    "fuel_type":  { "id": 1, "name": "Αμόλυβδη 95" },
+    "from": "2026-01-01",
+    "to":   "2026-04-22"
+  }
+}</pre>
+            </article>
+
+            <article class="endpoint" id="ep-prices-latest">
+                <header>
+                    <span class="method-badge">GET</span>
+                    <code class="endpoint-path">/prices/latest</code>
+                </header>
+                <p>Snapshot του πιο πρόσφατου δελτίου: όλες οι τιμές, για κάθε νομό και κάθε καύσιμο, για την τελευταία διαθέσιμη ημερομηνία.</p>
+                <h4>Παράδειγμα</h4>
+                <pre class="code">curl https://nireas.iee.ihu.gr/fuel/api/v1/prices/latest</pre>
+            </article>
+        </section>
+
+        <section id="errors" class="docs-section">
+            <h2>Σφάλματα</h2>
+            <p>Σε περίπτωση σφάλματος, το API επιστρέφει το αντίστοιχο HTTP status και ένα <code>error</code> object με κωδικό και μήνυμα.</p>
+            <table class="params-table">
+                <thead>
+                    <tr><th>Status</th><th>Code</th><th>Πότε συμβαίνει</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>400</td><td><code>missing_param</code></td><td>Λείπει υποχρεωτική παράμετρος</td></tr>
+                    <tr><td>400</td><td><code>invalid_param</code></td><td>Παράμετρος με λάθος τύπο ή μορφή</td></tr>
+                    <tr><td>400</td><td><code>invalid_range</code></td><td><code>from</code> μετά το <code>to</code></td></tr>
+                    <tr><td>404</td><td><code>not_found</code></td><td>Endpoint, νομός ή καύσιμο δεν υπάρχει</td></tr>
+                    <tr><td>404</td><td><code>unsupported_version</code></td><td>Λείπει ή είναι άγνωστη η έκδοση API στο URL</td></tr>
+                    <tr><td>405</td><td><code>method_not_allowed</code></td><td>Στάλθηκε non-GET request</td></tr>
+                    <tr><td>500</td><td><code>internal_error</code></td><td>Απρόσμενο σφάλμα στον server</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>Δεδομένα από το Υπουργείο Ενέργειας &bull; Ενημερώνονται καθημερινά</p>
+    </footer>
+</body>
+</html>

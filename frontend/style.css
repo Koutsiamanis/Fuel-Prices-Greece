@@ -21,6 +21,8 @@
 html, body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    overflow-x: clip;
 }
 
 body {
@@ -31,6 +33,22 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+/* Flex children default to min-width: auto, which refuses to shrink below
+   their widest content (long URLs in <pre>, etc.) and blows out the viewport
+   on narrow screens. Force them to shrink. */
+body > * {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Defensive: long Greek text and URLs should always be allowed to break
+   rather than push parents wider than their constrained width. */
+p, li, h1, h2, h3, h4, h5 {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 main {
@@ -249,6 +267,251 @@ main {
 
 .chart-status[data-kind="error"] {
     color: #b91c1c;
+}
+
+/* ---- Docs page ---- */
+
+.docs-hero {
+    background: var(--navy);
+    color: #fff;
+    padding: 60px 40px 70px;
+    text-align: center;
+}
+
+.docs-hero-inner {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.docs-hero h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: -0.02em;
+}
+
+.docs-hero p {
+    margin: 0;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.6;
+}
+
+.docs-content {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 40px 60px;
+}
+
+.docs-toc {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 40px;
+}
+
+.docs-toc a {
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.docs-toc a:hover {
+    background: var(--bg);
+    color: var(--navy);
+}
+
+.docs-section {
+    margin-bottom: 56px;
+    scroll-margin-top: 24px;
+}
+
+.docs-section h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+}
+
+.docs-section p {
+    line-height: 1.65;
+    color: var(--ink);
+    margin: 0 0 14px;
+}
+
+.docs-section .hint {
+    color: var(--ink-soft);
+    font-size: 14px;
+}
+
+.bullets {
+    margin: 0 0 14px;
+    padding-left: 22px;
+    line-height: 1.8;
+    color: var(--ink);
+}
+
+.endpoint {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    scroll-margin-top: 24px;
+}
+
+.endpoint header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.endpoint h4 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+    margin: 20px 0 8px;
+}
+
+.method-badge {
+    background: var(--green);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+}
+
+.endpoint-path {
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 15px;
+    color: var(--navy);
+    font-weight: 600;
+    word-break: break-all;
+}
+
+code {
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.92em;
+    background: #f1f5f9;
+    color: var(--navy);
+    padding: 2px 6px;
+    border-radius: 5px;
+}
+
+pre.code {
+    background: var(--navy-deep);
+    color: #e2e8f0;
+    padding: 16px 18px;
+    border-radius: 10px;
+    overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    margin: 0 0 14px;
+    -webkit-overflow-scrolling: touch;
+}
+
+pre.code code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+.code-comment {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.params-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 14px;
+    font-size: 14px;
+}
+
+.params-table th,
+.params-table td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.params-table th {
+    background: var(--bg);
+    color: var(--ink-soft);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.params-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+@media (max-width: 640px) {
+    .docs-hero {
+        padding: 40px 20px 50px;
+    }
+
+    .docs-hero p {
+        font-size: 15px;
+    }
+
+    .docs-content {
+        padding: 28px 14px 40px;
+    }
+
+    .docs-toc {
+        padding: 12px;
+        gap: 4px;
+    }
+
+    .docs-toc a {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    .endpoint {
+        padding: 18px 16px;
+    }
+
+    .params-table {
+        font-size: 12.5px;
+    }
+
+    .params-table th,
+    .params-table td {
+        padding: 8px 8px;
+    }
+
+    .params-table th:first-child,
+    .params-table td:first-child {
+        white-space: nowrap;
+    }
+
+    pre.code {
+        font-size: 12.5px;
+        padding: 14px;
+    }
 }
 
 /* ---- Footer ---- */
