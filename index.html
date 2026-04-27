@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fuel Prices Greece</title>
+    <meta name="description" content="Καθημερινές τιμές καυσίμων στην Ελλάδα από τα δελτία του Υπουργείου Ανάπτυξης. Διαγράμματα ανά νομό και καύσιμο, με δημόσιο REST API.">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Fuel Prices Greece">
+    <meta property="og:description" content="Καθημερινές τιμές καυσίμων στην Ελλάδα από τα δελτία του Υπουργείου Ανάπτυξης. Διαγράμματα ανά νομό και καύσιμο, με δημόσιο REST API.">
+    <meta property="og:image" content="https://nireas.iee.ihu.gr/fuel/og-image.png">
+    <meta property="og:url" content="https://nireas.iee.ihu.gr/fuel/">
+    <meta property="og:site_name" content="Fuel Prices Greece">
+    <meta property="og:locale" content="el_GR">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fuel Prices Greece">
+    <meta name="twitter:description" content="Καθημερινές τιμές καυσίμων στην Ελλάδα από τα δελτία του Υπουργείου Ανάπτυξης. Διαγράμματα ανά νομό και καύσιμο, με δημόσιο REST API.">
+    <meta name="twitter:image" content="https://nireas.iee.ihu.gr/fuel/og-image.png">
+
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@100..900&display=swap" rel="stylesheet">
@@ -12,9 +28,11 @@
 <body>
     <header class="site-header">
         <a class="brand" href="/fuel">
-            <svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true">
-                <path d="M4 24 L10 16 L14 20 L22 8 L28 14" fill="none" stroke="#0f1b3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="22" cy="8" r="3" fill="#22c55e"/>
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18" fill="none" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="3" y1="22" x2="15" y2="22" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round"/>
+                <rect x="6" y="5" width="6" height="3" rx="0.5" fill="#22c55e"/>
+                <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5" fill="none" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span class="brand-text">Fuel Prices Greece</span>
         </a>
@@ -28,18 +46,34 @@
 
     <main>
         <section class="hero">
-            <h1 class="hero-title">Μέση Τιμή Καυσίμων στην Ελλάδα</h1>
+            <div class="latest-section" aria-label="Τρέχουσες πανελλήνιες τιμές">
+                <h2 class="latest-title">Τρέχουσες Πανελλήνιες Τιμές</h2>
+                <p class="latest-subtitle" id="latest-subtitle"></p>
+                <div class="latest-grid" id="latest-grid"></div>
+            </div>
 
             <div class="controls">
-                <label class="control">
+                <div class="control">
                     <span class="control-label">Τύπος Καυσίμου</span>
-                    <select id="fuel-select" class="control-input"></select>
-                </label>
+                    <div class="multi-select" id="fuel-select">
+                        <button type="button" class="multi-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="trigger-label">Επιλέξτε...</span>
+                            <svg class="trigger-caret" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 8l5 5 5-5H5z" fill="currentColor"/></svg>
+                        </button>
+                        <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true"></div>
+                    </div>
+                </div>
 
-                <label class="control">
+                <div class="control">
                     <span class="control-label">Περιοχή</span>
-                    <select id="prefecture-select" class="control-input"></select>
-                </label>
+                    <div class="multi-select" id="prefecture-select">
+                        <button type="button" class="multi-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="trigger-label">Επιλέξτε...</span>
+                            <svg class="trigger-caret" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 8l5 5 5-5H5z" fill="currentColor"/></svg>
+                        </button>
+                        <div class="multi-select-panel" hidden role="listbox" aria-multiselectable="true"></div>
+                    </div>
+                </div>
 
                 <div class="control">
                     <span class="control-label">Διάστημα</span>
@@ -63,7 +97,8 @@
     </main>
 
     <footer class="site-footer">
-        <p>Δεδομένα από το Υπουργείο Ενέργειας &bull; Ενημερώνονται καθημερινά</p>
+        <p>Τα δεδόμενα εξάγονται απο το <a href="https://www.fuelprices.gr/deltia_dn.view" target="_blank" rel="noopener">Υπουργείο Ανάπτυξης</a> &bull; Ενημερώνονται καθημερινά</p>
+        <p>Made with <span class="heart" aria-label="love">&hearts;</span> by <a href="https://koutsiamanis.gr/" target="_blank" rel="noopener">Koutsiamanis</a></p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

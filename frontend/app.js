@@ -1,6 +1,9 @@
 /**
  * Greek Fuel Prices — frontend.
- * Talks to the PHP API at ../api/v1/. Renders a time-series line chart.
+ * Talks to the PHP API at api/v1/. Renders a time-series line chart.
+ *
+ * The user can select multiple fuels and/or multiple prefectures;
+ * one line is drawn per (prefecture × fuel) combination.
  */
 
 const GREEK_MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μάι', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
@@ -9,15 +12,42 @@ const DEFAULT_FUEL = 'Αμόλυβδη 95';
 const DEFAULT_PREFECTURE = 'ΠΑΝΕΛΛΗΝΙΟΣ ΣΤΑΘΜΙΣΜΕΝΟΣ Μ.Ο.';
 const NATIONAL_LABEL = 'Όλη η Ελλάδα';
 
+// Distinct line colors. Cycles if the user picks more series than colors.
+const PALETTE = [
+    '#22c55e', // green
+    '#0f1b3e', // navy
+    '#60a5fa', // blue
+    '#f59e0b', // amber
+    '#e11d48', // rose
+    '#8b5cf6', // purple
+    '#06b6d4', // cyan
+    '#ec4899', // pink
+];
+
 let chart = null;
 let coverageLatest = null;
+let fuelPicker = null;
+let prefecturePicker = null;
+let fetchToken = 0;
 
 const els = {
-    fuel: document.getElementById('fuel-select'),
-    prefecture: document.getElementById('prefecture-select'),
+    fuelRoot: document.getElementById('fuel-select'),
+    prefectureRoot: document.getElementById('prefecture-select'),
     chips: document.getElementById('range-chips'),
     status: document.getElementById('chart-status'),
     canvas: document.getElementById('price-chart'),
+    latestGrid: document.getElementById('latest-grid'),
+    latestSubtitle: document.getElementById('latest-subtitle'),
+};
+
+// Fuel display order for the headline cards (by fuel-types ID).
+// 5 = Diesel Θέρμανσης Κατ΄ οίκον is intentionally excluded — it's seasonal.
+const HEADLINE_FUEL_IDS = [1, 2, 3, 4];
+const FUEL_COLORS_BY_ID = {
+    1: '#22c55e', // Αμόλυβδη 95 οκτ.
+    2: '#f59e0b', // Αμόλυβδη 100 οκτ.
+    3: '#0f1b3e', // Diesel Κίνησης
+    4: '#60a5fa', // Υγραέριο κίνησης (Autogas)
 };
 
 // ---- API ----------------------------------------------------------------
@@ -33,6 +63,145 @@ async function apiGet(path, params = {}) {
     return body;
 }
 
+// ---- MultiSelect --------------------------------------------------------
+
+class MultiSelect {
+    constructor(root, items, { defaultIds = [], placeholder = 'Επιλέξτε...', countLabel = 'επιλογές' } = {}) {
+        this.root = root;
+        this.trigger = root.querySelector('.multi-select-trigger');
+        this.label = root.querySelector('.trigger-label');
+        this.panel = root.querySelector('.multi-select-panel');
+        this.items = items;
+        this.selected = new Set(defaultIds);
+        this.placeholder = placeholder;
+        this.countLabel = countLabel;
+        this.changeListeners = [];
+
+        this.renderOptions();
+        this.refreshLabel();
+        this.bindEvents();
+    }
+
+    renderOptions() {
+        this.panel.innerHTML = '';
+        for (const item of this.items) {
+            const row = document.createElement('label');
+            row.className = 'multi-option';
+            if (this.selected.has(item.id)) row.classList.add('is-selected');
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = this.selected.has(item.id);
+            cb.addEventListener('change', () => this.toggle(item.id, cb.checked, row));
+
+            const span = document.createElement('span');
+            span.textContent = item.name;
+
+            row.append(cb, span);
+            this.panel.appendChild(row);
+        }
+    }
+
+    toggle(id, on, row) {
+        if (on) this.selected.add(id);
+        else this.selected.delete(id);
+        row.classList.toggle('is-selected', on);
+        this.refreshLabel();
+        this.changeListeners.forEach(fn => fn());
+    }
+
+    refreshLabel() {
+        const n = this.selected.size;
+        if (n === 0) {
+            this.label.textContent = this.placeholder;
+        } else if (n === 1) {
+            const id = [...this.selected][0];
+            const item = this.items.find(i => i.id === id);
+            this.label.textContent = item ? item.name : this.placeholder;
+        } else {
+            this.label.textContent = `${n} ${this.countLabel}`;
+        }
+    }
+
+    bindEvents() {
+        this.trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = !this.panel.hasAttribute('hidden') ? false : true;
+            this.setOpen(open);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!this.root.contains(e.target)) this.setOpen(false);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.setOpen(false);
+        });
+    }
+
+    setOpen(open) {
+        if (open) {
+            this.panel.removeAttribute('hidden');
+            this.root.classList.add('is-open');
+            this.trigger.setAttribute('aria-expanded', 'true');
+        } else {
+            this.panel.setAttribute('hidden', '');
+            this.root.classList.remove('is-open');
+            this.trigger.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    onChange(fn) { this.changeListeners.push(fn); }
+
+    getSelectedItems() {
+        return this.items.filter(i => this.selected.has(i.id));
+    }
+}
+
+// ---- Latest prices cards ------------------------------------------------
+
+async function loadLatestPrices(fuels) {
+    try {
+        const res = await apiGet('prices/latest');
+        const national = res.data.entries.find(e => e.prefecture.name === DEFAULT_PREFECTURE);
+        if (!national) return;
+
+        els.latestSubtitle.textContent = `${formatGreekDate(res.data.date)}`;
+        els.latestGrid.innerHTML = '';
+
+        for (const fuelId of HEADLINE_FUEL_IDS) {
+            const fuel = fuels.find(f => f.id === fuelId);
+            if (!fuel) continue;
+            const price = national.prices[fuel.name];
+            if (price == null) continue;
+            els.latestGrid.appendChild(buildLatestCard(fuel.name, price));
+        }
+    } catch (e) {
+        console.error('Latest prices failed:', e);
+    }
+}
+
+function buildLatestCard(fuelName, price) {
+    const card = document.createElement('div');
+    card.className = 'latest-card';
+
+    const name = document.createElement('div');
+    name.className = 'latest-card-name';
+    name.textContent = fuelName;
+
+    const priceEl = document.createElement('div');
+    priceEl.className = 'latest-card-price';
+    priceEl.textContent = price.toFixed(3);
+
+    const unit = document.createElement('span');
+    unit.className = 'latest-card-unit';
+    unit.textContent = '€/L';
+    priceEl.appendChild(unit);
+
+    card.append(name, priceEl);
+    return card;
+}
+
 // ---- Status -------------------------------------------------------------
 
 function showStatus(text, kind = 'info') {
@@ -43,19 +212,6 @@ function showStatus(text, kind = 'info') {
 
 function hideStatus() {
     els.status.hidden = true;
-}
-
-// ---- Dropdowns ----------------------------------------------------------
-
-function populateSelect(select, items, { labelFor, defaultId }) {
-    select.innerHTML = '';
-    for (const item of items) {
-        const opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = labelFor(item);
-        if (item.id === defaultId) opt.selected = true;
-        select.appendChild(opt);
-    }
 }
 
 // ---- Range chips --------------------------------------------------------
@@ -88,44 +244,36 @@ function activeRange() {
 
 function buildChart() {
     const ctx = els.canvas.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 420);
-    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.25)');
-    gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
 
     chart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: '',
-                data: [],
-                borderColor: '#22c55e',
-                backgroundColor: gradient,
-                borderWidth: 2.5,
-                pointRadius: 0,
-                pointHoverRadius: 5,
-                pointHoverBackgroundColor: '#22c55e',
-                pointHoverBorderColor: '#fff',
-                pointHoverBorderWidth: 2,
-                fill: true,
-                tension: 0.25,
-            }],
-        },
+        data: { labels: [], datasets: [] },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#374151',
+                        font: { family: 'Commissioner', size: 13, weight: '500' },
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        boxWidth: 8,
+                        boxHeight: 8,
+                        padding: 14,
+                    },
+                },
                 tooltip: {
                     backgroundColor: '#0f1b3e',
                     titleFont: { family: 'Commissioner', size: 13, weight: '600' },
                     bodyFont: { family: 'Commissioner', size: 13 },
                     padding: 12,
-                    displayColors: false,
                     callbacks: {
                         title: (items) => formatGreekDate(items[0].parsed.x),
-                        label: (item) => `${item.parsed.y.toFixed(3)} €/L`,
+                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(3)} €/L`,
                     },
                 },
             },
@@ -133,16 +281,12 @@ function buildChart() {
                 x: {
                     type: 'time',
                     time: { unit: 'month' },
-                    adapters: {},
                     ticks: {
                         color: '#6b7280',
                         font: { family: 'Commissioner', size: 12 },
                         maxRotation: 0,
                         autoSkip: true,
-                        callback: (value) => {
-                            const d = new Date(value);
-                            return GREEK_MONTHS[d.getMonth()];
-                        },
+                        callback: (value) => GREEK_MONTHS[new Date(value).getMonth()],
                     },
                     grid: { display: false },
                     border: { color: '#e5e7eb' },
@@ -166,40 +310,89 @@ function formatGreekDate(ts) {
     return `${d.getDate()} ${GREEK_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+function makeDataset(label, color, points, fill) {
+    return {
+        label,
+        data: points,
+        borderColor: color,
+        backgroundColor: fill ? hexToRgba(color, 0.18) : color,
+        borderWidth: 2.2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        fill,
+        tension: 0.25,
+    };
+}
+
+function hexToRgba(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 // ---- Load + render ------------------------------------------------------
 
 async function refreshChart() {
-    const prefectureId = Number(els.prefecture.value);
-    const fuelTypeId = Number(els.fuel.value);
-    if (!prefectureId || !fuelTypeId) return;
+    const fuels = fuelPicker.getSelectedItems();
+    const prefectures = prefecturePicker.getSelectedItems();
+
+    if (fuels.length === 0 || prefectures.length === 0) {
+        showStatus('Επιλέξτε τουλάχιστον ένα καύσιμο και μία περιοχή.');
+        chart.data.datasets = [];
+        chart.update();
+        return;
+    }
 
     const { from, to } = computeRange(activeRange(), coverageLatest);
+    const combos = [];
+    for (const p of prefectures) {
+        for (const f of fuels) combos.push({ prefecture: p, fuel: f });
+    }
 
     showStatus('Φόρτωση…');
+    const myToken = ++fetchToken;
 
     try {
-        const res = await apiGet('prices', {
-            prefecture_id: prefectureId,
-            fuel_type_id: fuelTypeId,
-            from,
-            to,
+        const responses = await Promise.all(combos.map(({ prefecture, fuel }) =>
+            apiGet('prices', {
+                prefecture_id: prefecture.id,
+                fuel_type_id: fuel.id,
+                from,
+                to,
+            }).then(r => ({ prefecture, fuel, points: r.data }))
+        ));
+
+        // Discard if a newer fetch superseded us mid-flight.
+        if (myToken !== fetchToken) return;
+
+        const fillUnderLine = responses.length === 1;
+
+        const datasets = responses.map((r, i) => {
+            const color = PALETTE[i % PALETTE.length];
+            const label = combos.length === 1
+                ? `${r.fuel.name} — ${r.prefecture.name}`
+                : (prefectures.length === 1 ? r.fuel.name
+                  : fuels.length === 1 ? r.prefecture.name
+                  : `${r.fuel.name} — ${r.prefecture.name}`);
+            const points = r.points.map(p => ({ x: p.date, y: p.price }));
+            return makeDataset(label, color, points, fillUnderLine);
         });
 
-        const points = res.data.map(p => ({ x: p.date, y: p.price }));
-
-        if (points.length === 0) {
-            showStatus('Δεν βρέθηκαν δεδομένα για την επιλογή σας.', 'info');
-            chart.data.labels = [];
-            chart.data.datasets[0].data = [];
+        const empty = datasets.every(ds => ds.data.length === 0);
+        if (empty) {
+            showStatus('Δεν βρέθηκαν δεδομένα για την επιλογή σας.');
+            chart.data.datasets = [];
             chart.update();
             return;
         }
 
         hideStatus();
-        chart.data.datasets[0].label = res.meta.fuel_type.name;
-        chart.data.datasets[0].data = points;
+        chart.data.datasets = datasets;
         chart.update();
     } catch (e) {
+        if (myToken !== fetchToken) return;
         console.error(e);
         showStatus(`Σφάλμα: ${e.message}`, 'error');
     }
@@ -211,43 +404,39 @@ async function init() {
     buildChart();
     showStatus('Φόρτωση…');
 
+    let prefectures, fuels, root;
     try {
-        const [root, prefectures, fuels] = await Promise.all([
+        [root, prefectures, fuels] = await Promise.all([
             apiGet(''),
             apiGet('prefectures'),
             apiGet('fuel-types'),
         ]);
-
-        coverageLatest = root.data?.data_coverage?.latest || null;
-
-        const nationalRow = prefectures.data.find(p => p.name === DEFAULT_PREFECTURE);
-        const prefectureItems = prefectures.data.map(p => ({
-            id: p.id,
-            name: p.name === DEFAULT_PREFECTURE ? NATIONAL_LABEL : p.name,
-        }));
-        // Float national average to the top of the list for easy access.
-        if (nationalRow) {
-            prefectureItems.sort((a, b) => (a.id === nationalRow.id ? -1 : b.id === nationalRow.id ? 1 : 0));
-        }
-
-        populateSelect(els.prefecture, prefectureItems, {
-            labelFor: p => p.name,
-            defaultId: nationalRow?.id,
-        });
-
-        const defaultFuel = fuels.data.find(f => f.name === DEFAULT_FUEL) || fuels.data[0];
-        populateSelect(els.fuel, fuels.data, {
-            labelFor: f => f.name,
-            defaultId: defaultFuel?.id,
-        });
     } catch (e) {
         console.error(e);
         showStatus(`Αδυναμία σύνδεσης με το API: ${e.message}`, 'error');
         return;
     }
 
-    els.fuel.addEventListener('change', refreshChart);
-    els.prefecture.addEventListener('change', refreshChart);
+    coverageLatest = root.data?.data_coverage?.latest || null;
+
+    // Float national average to the top, rename for the picker.
+    const nationalRow = prefectures.data.find(p => p.name === DEFAULT_PREFECTURE);
+    const prefectureItems = prefectures.data
+        .map(p => ({ id: p.id, name: p.name === DEFAULT_PREFECTURE ? NATIONAL_LABEL : p.name }))
+        .sort((a, b) => (a.id === nationalRow?.id ? -1 : b.id === nationalRow?.id ? 1 : 0));
+
+    const defaultFuel = fuels.data.find(f => f.name === DEFAULT_FUEL) || fuels.data[0];
+
+    fuelPicker = new MultiSelect(els.fuelRoot, fuels.data, {
+        defaultIds: defaultFuel ? [defaultFuel.id] : [],
+    });
+    prefecturePicker = new MultiSelect(els.prefectureRoot, prefectureItems, {
+        defaultIds: nationalRow ? [nationalRow.id] : [],
+    });
+
+    fuelPicker.onChange(refreshChart);
+    prefecturePicker.onChange(refreshChart);
+
     els.chips.addEventListener('click', (e) => {
         const btn = e.target.closest('.chip');
         if (!btn) return;
@@ -257,6 +446,7 @@ async function init() {
     });
 
     refreshChart();
+    loadLatestPrices(fuels.data);
 }
 
 init();
