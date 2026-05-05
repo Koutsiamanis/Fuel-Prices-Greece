@@ -524,6 +524,14 @@ def process_pdf(pdf_path, date_str):
     if db_failed:
         send_critical_alert(date_str, f"DB insert failed for {date_str}")
 
+    # PDF is no longer needed — the JSON is the canonical artifact and is
+    # re-importable into the DB. We only reach this point on a successful parse.
+    try:
+        pdf_path.unlink()
+        log(f"  Deleted: {pdf_path.name}")
+    except OSError as e:
+        log(f"  Could not delete {pdf_path.name}: {e}")
+
     return True
 
 
