@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About &mdash; Fuel Prices Greece</title>
+    <meta name="description" content="Πληροφορίες για το έργο Fuel Prices Greece και τους ακαδημαϊκούς φορείς που το υποστηρίζουν.">
+
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="frontend/style.css">
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="/fuel">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18" fill="none" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="3" y1="22" x2="15" y2="22" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round"/>
+                <rect x="6" y="5" width="6" height="3" rx="0.5" fill="#22c55e"/>
+                <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5" fill="none" stroke="#0f1b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="brand-text">Fuel Prices Greece</span>
+        </a>
+        <div class="nav-actions">
+            <a class="api-button" href="/fuel">
+                <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+                    <path d="M10 19l-7-7 7-7v4h11v6H10v4z" fill="currentColor"/>
+                </svg>
+                Αρχική
+            </a>
+        </div>
+    </header>
+
+    <section class="docs-hero">
+        <div class="docs-hero-inner">
+            <h1>About</h1>
+            <p>Σχετικά με το έργο.</p>
+        </div>
+    </section>
+
+    <main class="about-content">
+        <section class="about-logos">
+            <a href="https://www.ihu.gr/" target="_blank" rel="noopener" aria-label="International Hellenic University">
+                <img src="frontend/logos/ihu-gr-logo-created17m519.png" alt="International Hellenic University">
+            </a>
+            <a href="https://www.ihu.gr/sxoles/polytechniki-sxoli#skopos" target="_blank" rel="noopener" aria-label="Σχολή Πολυτεχνική">
+                <img src="frontend/logos/Logo_Polytexnikis.jpg" alt="Σχολή Πολυτεχνική">
+            </a>
+            <a href="https://iee.ihu.gr/" target="_blank" rel="noopener" aria-label="Τμήμα Μηχανικών Πληροφορικής, Υπολογιστών και Τηλεπικοινωνιών">
+                <img src="frontend/logos/iee.png" alt="Τμήμα Μηχανικών Πληροφορικής, Υπολογιστών και Τηλεπικοινωνιών">
+            </a>
+            <a href="https://imselab.iee.ihu.gr/" target="_blank" rel="noopener" aria-label="IMSE Lab">
+                <img src="frontend/logos/imselab1bt.png" alt="IMSE Lab">
+            </a>
+        </section>
+
+        <section class="about-text">
+            <p>Οι τιμές των υγρών καυσίμων στην Ελλάδα δημοσιεύονται καθημερινά από το <a href="https://www.fuelprices.gr/deltia_dn.view" target="_blank" rel="noopener">Υπουργείο Ανάπτυξης</a>, από το 2017 μέχρι σήμερα. Καθώς όμως τα δεδομένα κυκλοφορούν αποκλειστικά σε μορφή PDF, η μαζική επεξεργασία και η ανάλυσή τους γίνεται ιδιαίτερα δύσκολη. Για να αντιμετωπίσουμε αυτό το ζήτημα, επεξεργαστήκαμε πάνω από 3.000 δελτία τιμών και δημιουργήσαμε ένα ανοιχτό REST API καθώς και μία απλή διαδικτυακή διεπαφή, ώστε ο καθένας να έχει άμεση και προγραμματιστική πρόσβαση σε αυτά τα δεδομένα.</p>
+
+            <p>Το έργο αναπτύχθηκε από τον <a href="https://koutsiamanis.gr/" target="_blank" rel="noopener">Γιώργο Κουτσιαμάνη</a>, υπό την καθοδήγηση του <a href="https://www.iee.ihu.gr/staff/ougiaroglou-stefanos/" target="_blank" rel="noopener">Στέφανου Ουγιάρογλου</a>. Πρόκειται για υπηρεσία του Εργαστηρίου Διαχείρισης Πληροφορίας και Μηχανικής Λογισμικού του Τμήματος Μηχανικών Πληροφορικής και Ηλεκτρονικών Συστημάτων του Διεθνούς Πανεπιστημίου της Ελλάδος.</p>
+
+            <p class="about-feedback">Η γνώμη σας μετράει. <a href="https://forms.gle/AHh8kTjkhty5etCDA" target="_blank" rel="noopener">Αξιολογήστε μας εδώ</a>.</p>
+        </section>
+    </main>
+
+
+</body>
+</html>
