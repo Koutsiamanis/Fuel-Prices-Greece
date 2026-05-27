@@ -1,17 +1,10 @@
 # Greek Fuel Prices
 
-A system that collects daily fuel price data from Greek government PDF bulletins, parses it, and will serve it through a public API with a chart-based frontend.
+A system that collects daily fuel price data from Greek government PDF bulletins, stores it in a relational database, exposes it through a public REST API, and visualises it in an interactive web app.
 
-The Greek Ministry of Energy publishes a PDF every day with fuel prices per prefecture (51 regions). This project captures that data going back to 2017 and keeps it up to date automatically.
+The Greek Ministry of Development publishes a PDF every day with fuel prices for the 51 Greek prefectures. This project captures that data going back to 2017 and keeps it up to date automatically.
 
-## Current Status
-
-- **3,213 PDFs** collected and parsed (2017 – present)
-- **3,213 JSON files** produced, one per day
-- Daily pipeline running via cron — downloads, parses, inserts into MySQL, and logs each new bulletin
-- MySQL schema applied; bulk-import script backfills all historical JSONs
-- Public PHP REST API serves the data (versioned at `/api/v1/`)
-- Chart-based frontend is next
+**Live application:** https://nireas.iee.ihu.gr/fuel/
 
 ## How It Works
 
@@ -25,7 +18,7 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 1. Fetches the government page and finds up to 30 recent bulletins
 2. Downloads any PDFs not yet on disk
 3. Parses each unprocessed one (pdfplumber → Gemini fallback)
-4. Saves the result to `json_output/`
+4. Saves the result to `json_output/` and inserts into MySQL
 5. Logs the outcome to `logs/daily_pipeline.json`
 6. Sends a weekly summary email on Sunday (and an immediate alert on failure)
 
@@ -35,11 +28,11 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 ├── scripts/
 │   ├── daily_pipeline.py   # Daily cron job: download → parse → DB → log → alert
 │   ├── daily_parser.py     # pdfplumber parser for standardised (2023+) PDFs
-│   ├── parceALLpdfs.py     # Bulk parser using Gemini AI (historical PDFs)
+│   ├── parceALLpdfs.py     # Bulk parser using Gemini (historical PDFs)
 │   ├── downloadALL.py      # One-off: download all historical PDFs
 │   ├── import_to_db.py     # One-off: bulk-import all JSONs into MySQL
 │   └── db.py               # Shared MySQL connection + insert helpers
-├── pdfs/                   # All downloaded PDFs (git-ignored)
+├── pdfs/                   # Downloaded PDFs (git-ignored, deleted after parsing)
 ├── json_output/            # Parsed output, one JSON per day (git-ignored)
 ├── logs/                   # Pipeline run logs (git-ignored)
 ├── database/
@@ -49,7 +42,12 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 │   ├── config.php          # DB connection + .env loader
 │   ├── helpers.php         # Response + input-validation helpers
 │   └── endpoints/          # One file per endpoint
-└── frontend/               # Chart UI — coming soon
+├── frontend/               # Web app assets
+│   ├── app.js              # Chart.js logic + multi-select dropdowns
+│   └── style.css           # Responsive styling
+├── index.html              # Home page (charts + latest prices)
+├── docs.html               # API documentation page
+└── about.html              # Project info page
 ```
 
 ## Setup
@@ -61,7 +59,7 @@ Older PDFs (pre-2023) have inconsistent formatting, so they are parsed by **Gemi
 
 2. Install Python dependencies:
    ```bash
-   pip install google-genai pymysql python-dotenv tqdm pdfplumber requests beautifulsoup4
+   pip install -r requirements.txt
    ```
 
 3. Apply the schema to your MySQL server:
@@ -88,7 +86,7 @@ Add to crontab to run once a day (e.g. noon):
 ### Bulk historical import
 ```bash
 python scripts/downloadALL.py          # download all PDFs
-python scripts/parceALLpdfs.py ./pdfs  # parse them
+python scripts/parceALLpdfs.py ./pdfs  # parse them with Gemini
 ```
 
 ### Test email configuration
@@ -124,5 +122,5 @@ Read-only JSON API, versioned at `/api/v1/`. **Public — no authentication requ
 ### Example
 
 ```
-curl 'https://example.com/api/v1/prices?prefecture_id=1&fuel_type_id=1&from=2026-01-01&to=2026-04-16'
+curl 'https://nireas.iee.ihu.gr/fuel/api/v1/prices?prefecture_id=1&fuel_type_id=1&from=2026-01-01&to=2026-05-01'
 ```
